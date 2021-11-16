@@ -1,0 +1,177 @@
+SET SCHEMA 'library';
+
+--Create a query that will retrieve only selected columns from the selected table
+SELECT name, surname from member
+
+Create a query that will select user/person or similar table based on the email.
+SELECT  * FROM "member_contacts" WHERE member_contacts.email LIKE '%@gmail.com';
+
+--Create at least one UPDATE, INSERT, DELETE, and ALTER TABLE query
+UPDATE author set author_name = 'Petr' where author_id = 1
+INSERT INTO author (author_name, author_surname, date_birth, date_death) VALUES ('Ámos', 'Kosař','1890-1-1', '1950-04-04');
+DELETE FROM member where member_id = 1
+ALTER TABLE library.member ADD COLUMN age INT;
+
+
+--Create a series of queries that will separately use the following:
+WHERE
+Select name, surname from member WHERE member_id = 5
+--Like; NOT LIKE
+SELECT * from author where author_name like 'Ámos'
+SELECT "name" from "member" WHERE name NOT like 'R%'
+--SUBSTRING; TRIM
+SELECT	surname,	SUBSTRING( name, 1, 1 ) AS initial FROM member
+ORDER BY surname;
+SELECT TRIM(both 'M, a' FROM author_name) from author;
+
+--COUNT; SUM; MIN; MAX; AVG;
+SELECT COUNT(DISTINCT "author_id") FROM "author";
+SELECT SUM(book_id) from book
+SELECT MAX(book_id) from book
+SELECT MIN(book_id) from book
+SELECT AVG(book_id) from book
+
+--GROUP BY; GROUP BY and HAVING, GROUP BY, HAVING and WHERE
+select city_name from adress
+group by city_name
+SELECT author_id, avg(author_id) from author
+GROUP BY author_id HAVING author_id>10
+SELECT author_id, author_name, avg(author_id) from author WHERE author_name LIKE 'K%'
+GROUP BY author_id having author_id>10
+SELECT "name" from "member"
+UNION
+SELECT "author_name" from "author"
+--DISTINCT
+select distinct "author_name" from author
+
+--LEFT JOIN; RIGHT JOIN; FULL OUTER JOIN
+SELECT library_name, street_name, postal_code FROM adress x LEFT JOIN library l on x.adress_id = l.adress_id
+select name, surname, email from member m right join member_contacts c on m.member_contacts_id = c.member_contacts_id
+SELECT "name", surname, date_due from library.member l FULL OUTER JOIN library.loaned_book b on l.member_id = b.member_id
+
+--Use in one query: LEFT JOIN, GROUP BY, HAVING, ORDER BY, AVG and DISTINCT
+SELECT distinct(author_id), author_name, author_surname, book_id from author a
+left join book_has_author ba on a.author_id = ba.author_author_id
+left join book b on ba.author_author_id=b.book_id
+group by b.book_id, a.author_id having AVG(a.author_id) IS NOT NULL order by b.book_id
+
+
+--Create a query that will return the data from an arbitrary table for the last one and half days
+SELECT * FROM loaned_book WHERE NOW() -  date_due < '36:0:0';
+
+--Create a query that will return data from the last month (starting from the first day of the month)
+SELECT * FROM loaned_book WHERE date_trunc('month', NOW()) = date_trunc('month', "date_due")
+
+--Write a select that will remove accents on a selected string (e.g.,  ´a will be converted to a)
+CREATE EXTENSION UNACCENT;
+SELECT UNACCENT(author_name), UNACCENT(author_surname) from author;
+
+
+--Create a query for pagination in an application (use LIMIT and OFFSET)
+SELECT author_name FROM author LIMIT  ALL  OFFSET 5
+
+
+--Create a query that will use subquery in FROM
+select postal_code FROM (select * FROM adress x INNER JOIN library l on x.adress_id = l.adress_id) as "id"
+
+--Create a query that will use subquery in WHERE condition
+SELECT * FROM member WHERE "member_contacts_id" = (SELECT member_contacts_id FROM member_contacts WHERE phone = '012 756 785');
+
+
+--Create a query that will use any aggregate function and GROUP BY with HAVING
+select a.postal_code, COUNT(distinct l.adress_id) from adress a inner join library l on a.adress_id = l.adress_id  group by a.postal_code having COUNT(a.adress_id) = 1
+
+--Create a query that will join at least five tables
+SELECT author_name, author_surname,book_title, publishing_house_id, adress_id from author "a"
+JOIN
+book_has_author bha on a.author_id=bha.author_author_id 
+JOIN
+book b on bha.book_book_id=b.book_id
+LEFT JOIN
+book_in_library bil on b.book_id= bil.book_in_library_id
+LEFT JOIN
+"library" lib on bil.book_in_library_id = lib.library_id
+WHERE lib.library_id is not null
+
+-Create a query that will join at least three tables and will use GROUP BY, HAVING, and WHERE
+SELECT author_name , author_surname, book_title from author 
+join book_has_author ba on author.author_id = ba.author_author_id
+join book b on ba.author_author_id=b.book_id
+WHERE author_name like '%a%'
+group by author_name, author_surname, book_title  having book_title IS NOT NULL
+
+--Modify the database from the first project assignment to improve integrity constraints (e.g., reduce the size for varchar columns), set cascading
+ALTER TABLE literature_category ALTER COLUMN "category_name" TYPE VARCHAR(25);
+
+---book_in_library
+alter table "book_in_library" drop constraint book_id, add constraint book_id foreign key (book_id) references book (book_id) on delete cascade;
+alter table "book_in_library" drop constraint library_id, add constraint library_id foreign key (library_id) references "library" (library_id) on delete cascade;
+---member
+alter table "member" drop constraint fk_member_member_contacts1, add constraint fk_member_member_contacts1 foreign key (member_contacts_id) references member_contacts (member_contacts_id) on delete cascade;
+--loaned_book
+alter table "loaned_book" drop constraint book_in_library_id, add constraint book_in_library_id foreign key (book_in_library_id) references book_in_library (book_in_library_id) on delete cascade;
+alter table "loaned_book" drop constraint member_id, add constraint member_id foreign key (member_id) references member (member_id) on delete cascade;
+
+--Create database indexes (create it only on columns where it can make a sense – explain in the provided document why it make sense on a certain column(s))
+EXPLAIN SELECT * FROM literature_category WHERE category_name LIKE('%a');
+CREATE INDEX l_idx ON "literature_category" ("category_name");
+
+--Create arbitrary database procedure (consider some complex case)
+CREATE OR REPLACE PROCEDURE insert_publishing_house(publishing_house_id int, publishing_house_name VARCHAR(45))
+LANGUAGE plpgsql
+as  $$
+BEGIN
+INSERT INTO publishing_house VALUES (publishing_house_id, publishing_house_name);
+END;
+$$;
+Call insert_publishing_house(9, 'Beta');
+select * from publishing_house
+
+--Create arbitrary database trigger
+
+CREATE or replace Function notice_function() RETURNS TRIGGER as $trig$
+BEGIN
+RAISE NOTICE 'AUTHOR SUCCESFULLY INSERTED';
+RETURN NEW;
+END;
+$trig$ LANGUAGE plpgsql;
+
+CREATE TRIGGER arb_trigger AFTER INSERT ON author FOR EACH STATEMENT
+       EXECUTE PROCEDURE notice_function()
+
+--Create arbitrary database view (consider some complex case)
+CREATE OR REPLACE VIEW  "book_info" AS
+SELECT "name", surname, date_due from library.member l
+JOIN library.loaned_book b on l.member_id = b.member_id;
+SELECT * FROM book_info
+--Create database materialized view 
+CREATE MATERIALIZED VIEW arb_materialized_view AS
+	SELECT name, m.member_id, date_loaned FROM loaned_book b
+	join
+	member m on b.member_id = m.member_id
+	where date_due < CURRENT_DATE
+	GROUP BY m.member_id, b.date_loaned
+
+--Create two roles teacher and student in your database. Assign for teacher privileges to
+--SELECT, INSERT, UPDATE, and DELETE everything in arbitrary table. Furthermore, setfor teacher the possibility to view only certain fields (e.g., without salary from”person“ oryour”user“ object). For student assign a possibility to select only certain tables.
+CREATE ROLE teacher NOSUPERUSER;
+REVOKE ALL ON ALL TABLES IN SCHEMA library FROM teacher;
+GRANT SELECT, INSERT, UPDATE, DELETE ON "author" TO teacher;
+CREATE VIEW teachers_view_author AS (SELECT author_id, author_name, author_surname FROM author);
+GRANT SELECT ON teachers_view_author TO teacher;
+CREATE ROLE student NOSUPERUSER;
+REVOKE ALL ON ALL TABLES IN SCHEMA library FROM student;
+GRANT SELECT ON book, book_in_library, loaned_book TO student;
+
+
+
+
+
+
+
+
+
+
+
+
+
